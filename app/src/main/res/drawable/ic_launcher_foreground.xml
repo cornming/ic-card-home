@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card with a house on it, next to the contactless "tap" waves.
+     Everything stays inside the 66dp safe circle (centre 54,54, radius 33) so no launcher mask crops it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,40h32a4,4 0,0 1,4 4v20a4,4 0,0 1,-4 4h-32a4,4 0,0 1,-4 -4v-20a4,4 0,0 1,4 -4z" />
+
+    <!-- House on the card (amber), door in white -->
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M38,45L45.5,51.5L43.5,51.5L43.5,60L32.5,60L32.5,51.5L30.5,51.5Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36.2,54.5h3.6v5.5h-3.6z" />
+
+    <!-- Text lines on the card -->
+    <path
+        android:pathData="M50,50h11"
+        android:strokeColor="#B8C7DB"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M50,56.5h7"
+        android:strokeColor="#B8C7DB"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+
+    <!-- Contactless waves leaving the card -->
+    <path
+        android:pathData="M70.24,49.76A6,6 0,0 1,70.24 58.24"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M74.49,45.51A12,12 0,0 1,74.49 62.49"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M78.73,41.27A18,18 0,0 1,78.73 66.73"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+</vector>

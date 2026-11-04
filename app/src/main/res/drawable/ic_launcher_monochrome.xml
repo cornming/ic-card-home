@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single-colour version for Android 13+ themed icons; the system tints it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Card outline -->
+    <path
+        android:pathData="M30,41.3h32a2.7,2.7 0,0 1,2.7 2.7v20a2.7,2.7 0,0 1,-2.7 2.7h-32a2.7,2.7 0,0 1,-2.7 -2.7v-20a2.7,2.7 0,0 1,2.7 -2.7z"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.6" />
+
+    <!-- House with the door cut out (even-odd fill) -->
+    <path
+        android:fillColor="#000000"
+        android:fillType="evenOdd"
+        android:pathData="M38,45L45.5,51.5L43.5,51.5L43.5,60L32.5,60L32.5,51.5L30.5,51.5ZM36.2,54.5h3.6v5.5h-3.6z" />
+
+    <path
+        android:pathData="M50,50h11"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M50,56.5h7"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+
+    <path
+        android:pathData="M70.24,49.76A6,6 0,0 1,70.24 58.24"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M74.49,45.51A12,12 0,0 1,74.49 62.49"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M78.73,41.27A18,18 0,0 1,78.73 66.73"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+</vector>

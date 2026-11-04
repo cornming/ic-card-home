@@ -1,0 +1,19 @@
+# Build output and local config
+build/
+.gradle/
+.idea/
+local.properties
+*.iml
+
+# Release output (the APK is published as a GitHub Release asset, not committed)
+dist/
+*.apk
+*.jks
+*.keystore
+
+# Google Home API SDK must never be committed (Android SDK License forbids redistribution).
+# Each developer downloads it from Google Home Developers into ~/.m2/repository.
+*.aar
+*.zip
+m2/
+.m2/
