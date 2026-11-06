@@ -21,6 +21,9 @@ class MainActivity : ComponentActivity() {
         vm.attach(HomeController(this))
         nfc = NfcReader(this) { uid -> vm.onCardScanned(uid) }
         vm.checkForUpdate(manual = false)
+        // Started by a card tap while the app was closed. A recreated activity (savedInstanceState != null)
+        // still carries the old intent, so it must not replay the tap.
+        if (savedInstanceState == null) handleCardIntent(intent)
 
         enableEdgeToEdge()
         setContent {
@@ -34,6 +37,21 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    // Card tapped while the app was running in the background (launchMode is singleTop).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleCardIntent(intent)
+    }
+
+    /** Feeds a system-dispatched card tap into the same path as a foreground read, confirm dialog included. */
+    private fun handleCardIntent(intent: Intent) {
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        val uid = NfcReader.uidFromIntent(intent) ?: return
+        // Replace the intent so the same tap can never be handled twice.
+        setIntent(Intent(this, MainActivity::class.java))
+        vm.onCardScanned(uid)
     }
 
     // Reader mode only works while the app is in the foreground.
