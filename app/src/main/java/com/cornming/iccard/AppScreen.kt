@@ -1,5 +1,8 @@
 package com.cornming.iccard
 
+import android.content.Intent
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,10 +38,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.home.PermissionsState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AppScreen(
@@ -134,6 +143,7 @@ fun AppScreen(
             }
 
             item { SectionTitle("記錄") }
+            item { LogActions(log) }
             if (log.isEmpty()) {
                 item { Text("目前沒有記錄。") }
             } else {
@@ -188,6 +198,37 @@ fun AppScreen(
 private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 }
+
+@Composable
+private fun LogActions(log: List<String>) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = {
+            clipboard.setText(AnnotatedString(buildLogExport(log)))
+            Toast.makeText(context, "已複製記錄，可以貼給 Claude", Toast.LENGTH_SHORT).show()
+        }) { Text("複製記錄") }
+        OutlinedButton(onClick = {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "IC 卡控制 操作記錄")
+                putExtra(Intent.EXTRA_TEXT, buildLogExport(log))
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "匯出操作記錄"))
+        }) { Text("匯出記錄") }
+    }
+}
+
+/** 完整操作記錄，含手機與 App 版本等脈絡，方便事後判斷問題（只在裝置本機產生，不會自動送出）。 */
+private fun buildLogExport(log: List<String>): String = buildString {
+    appendLine("IC 卡控制 操作記錄匯出")
+    appendLine("App 版本：${BuildConfig.VERSION_NAME}")
+    appendLine("手機：${Build.MANUFACTURER} ${Build.MODEL}，Android ${Build.VERSION.RELEASE}（API ${Build.VERSION.SDK_INT}）")
+    appendLine("匯出時間：${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.TAIWAN).format(Date())}")
+    appendLine()
+    appendLine(if (log.isEmpty()) "記錄：無" else "記錄（最近 ${log.size} 筆，由新到舊）")
+    log.forEach { appendLine(it) }
+}.trimEnd()
 
 @Composable
 private fun NfcCard(supported: Boolean, enabled: Boolean, onOpenSettings: () -> Unit) {
