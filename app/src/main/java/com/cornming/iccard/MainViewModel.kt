@@ -72,6 +72,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var debounceUid: String? = null
     private var debounceAt = 0L
 
+    /**
+     * Which path produced the card currently sitting in [_pendingExecution], captured at scan time so the
+     * confirm button (pressed well after the scan) still tags the log with the right source.
+     */
+    private var pendingSource: String = ""
+
     init {
         // Failures reported by the installer arrive asynchronously, after the app handed over the APK.
         viewModelScope.launch {
@@ -233,14 +239,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun confirmExecution() {
         val mapping = _pendingExecution.value ?: return
         _pendingExecution.value = null
-        runMapping(mapping)
+        runMapping(mapping, pendingSource)
     }
 
     fun cancelExecution() {
         val mapping = _pendingExecution.value ?: return
         _pendingExecution.value = null
-        addLog("已取消對「${mapping.deviceName}」的操作")
+        addLog("[$pendingSource] 已取消對「${mapping.deviceName}」的操作")
     }
+
+    /** For MainActivity to record a tap that bailed out before there was any UID to log against. */
+    fun logDiagnostic(message: String) = addLog(message)
 
     fun startRegistering() {
         _registering.value = true
@@ -271,10 +280,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Entry point for both real taps and the "simulate" button.
+     * [source] says which path produced a real tap ("前景讀卡" from reader mode while the app was already
+     * open, "冷啟動" or "背景喚回" when the system launched/resumed the app for the tap) — it is only ever
+     * used to tag 記錄, it never changes what the scan does.
      * A simulated tap never touches a device, it only logs what would happen.
      */
-    fun onCardScanned(uid: String, simulated: Boolean = false) {
+    fun onCardScanned(uid: String, simulated: Boolean = false, source: String = "前景讀卡") {
         val now = System.currentTimeMillis()
+        val tag = if (simulated) "[模擬]" else "[$source]"
         if (!simulated) {
             // A card held against the phone fires repeatedly; without this a toggle would flip back and forth.
             if (uid == debounceUid && now - debounceAt < DEBOUNCE_MS) return
@@ -282,7 +295,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             debounceAt = now
         }
         if (!simulated && _pendingExecution.value != null) {
-            addLog("上一個操作還在等你確認，已忽略這次刷卡")
+            addLog("$tag 上一個操作還在等你確認，已忽略這次刷卡")
             return
         }
         _lastUid.value = uid
@@ -290,17 +303,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (_registering.value) {
             _registering.value = false
             _pendingUid.value = uid
-            addLog("收到卡片 $uid，請選擇要控制的裝置")
+            addLog("$tag 收到卡片 $uid，請選擇要控制的裝置")
             return
         }
 
         val mapping = _mappings.value.firstOrNull { it.uid == uid }
         if (mapping == null) {
-            addLog("未登記的卡：$uid")
+            addLog("$tag 未登記的卡：$uid")
             return
         }
 
-        val tag = if (simulated) "[模擬]" else ""
         if (mapping.looksLikeDoor && !_allowDoors.value) {
             addLog("$tag 已擋下：「${mapping.deviceName}」疑似門禁，需先在安全設定允許")
             return
@@ -313,31 +325,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (mapping.looksLikeDoor && _confirmDoors.value) {
             // Second gate: nothing is sent until the user presses "confirm" on the phone.
             _pendingExecution.value = mapping
-            addLog("等待確認：要對「${mapping.deviceName}」執行：${doorAction(mapping).label}")
+            pendingSource = source
+            addLog("$tag 等待確認：要對「${mapping.deviceName}」執行：${doorAction(mapping).label}")
             viewModelScope.launch {
                 delay(CONFIRM_TIMEOUT_MS)
                 if (_pendingExecution.value == mapping) {
                     _pendingExecution.value = null
-                    addLog("確認逾時，已取消對「${mapping.deviceName}」的操作")
+                    addLog("$tag 確認逾時，已取消對「${mapping.deviceName}」的操作")
                 }
             }
             return
         }
-        runMapping(mapping)
+        runMapping(mapping, source)
     }
 
     /** Door relays are set to inching in eWeLink, so ON is the only command that makes sense. */
     private fun doorAction(mapping: CardMapping): CardAction =
         if (mapping.looksLikeDoor) CardAction.ON else mapping.action
 
-    private fun runMapping(mapping: CardMapping) {
+    private fun runMapping(mapping: CardMapping, source: String) {
         val c = controller
         if (c == null) {
-            addLog("尚未連上 Google Home，無法控制")
+            addLog("[$source] 尚未連上 Google Home，無法控制")
             return
         }
         viewModelScope.launch {
-            addLog(c.execute(mapping.deviceId, doorAction(mapping)))
+            addLog("[$source] 授權狀態：${_permission.value}，開始送出指令")
+            addLog("[$source] ${c.execute(mapping.deviceId, doorAction(mapping))}")
             refreshDevices()
         }
     }

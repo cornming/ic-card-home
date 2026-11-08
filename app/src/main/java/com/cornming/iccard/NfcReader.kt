@@ -51,6 +51,9 @@ class NfcReader(
 
         private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02X".format(it) }
 
+        /** True if this intent is one of the three NFC tag-dispatch intents, regardless of whether a Tag was attached. */
+        fun isDispatchIntent(intent: Intent): Boolean = intent.action in DISPATCH_ACTIONS
+
         /**
          * UID of a card the system handed to the app (tapped while the app was not in the foreground),
          * or null if the intent is not an NFC dispatch.
