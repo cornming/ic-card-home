@@ -23,6 +23,12 @@ $tag = "v$version"
 
 if (gh release view $tag 2>$null) { throw "Release $tag already exists. Bump versionCode and versionName first." }
 
+# Point the tag at the commit that is checked out (not the default branch), so it matches the APK built below.
+# GitHub can only tag a commit it already has, so the commit must have been pushed.
+$commit = (git rev-parse HEAD).Trim()
+if (-not $commit) { throw "Could not read the current commit" }
+if (-not (git branch -r --contains $commit)) { throw "Commit $commit is not on the remote yet. Run git push first." }
+
 if (-not $SkipBuild) {
     if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk" }
     .\gradlew.bat --console=plain :app:assembleRelease
@@ -37,5 +43,5 @@ Copy-Item $built $apk -Force
 $sha = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLower()
 
 $body = "$Notes`n`nSHA-256: ``$sha```n"
-gh release create $tag $apk --title $tag --notes $body
-Write-Host "Published $tag ($apk, sha256 $sha)"
+gh release create $tag $apk --title $tag --notes $body --target $commit
+Write-Host "Published $tag at $commit ($apk, sha256 $sha)"
