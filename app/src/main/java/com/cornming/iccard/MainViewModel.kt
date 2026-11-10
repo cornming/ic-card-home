@@ -1,6 +1,7 @@
 package com.cornming.iccard
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.home.HomeException
@@ -11,8 +12,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,6 +80,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * confirm button (pressed well after the scan) still tags the log with the right source.
      */
     private var pendingSource: String = ""
+
+    /** True while a command (including its retries) is in flight, so a second tap cannot fire a second one. */
+    private var executing = false
 
     init {
         // Failures reported by the installer arrive asynchronously, after the app handed over the APK.
@@ -184,6 +190,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         permissionJob?.cancel()
         permissionJob = viewModelScope.launch {
             controller.permissionState().collect { state ->
+                if (state != _permission.value) addLog("授權狀態變更：$state（${sinceProcessStart()}）")
                 _permission.value = state
                 if (state == PermissionsState.GRANTED) refreshDevices()
             }
@@ -239,6 +246,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun confirmExecution() {
         val mapping = _pendingExecution.value ?: return
         _pendingExecution.value = null
+        addLog("[$pendingSource] 已按確認，要對「${mapping.deviceName}」執行")
         runMapping(mapping, pendingSource)
     }
 
@@ -349,12 +357,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             addLog("[$source] 尚未連上 Google Home，無法控制")
             return
         }
+        if (executing) {
+            addLog("[$source] 上一個指令還在執行，已忽略這次操作")
+            return
+        }
+        executing = true
         viewModelScope.launch {
-            addLog("[$source] 授權狀態：${_permission.value}，開始送出指令")
-            addLog("[$source] ${c.execute(mapping.deviceId, doorAction(mapping))}")
-            refreshDevices()
+            try {
+                val action = doorAction(mapping)
+                awaitPermissionReady(source)
+                addLog("[$source] 授權狀態：${_permission.value}，開始送出指令（${sinceProcessStart()}）")
+                var attempt = 1
+                while (true) {
+                    val result = c.execute(mapping.deviceId, action)
+                    if (result.ok) {
+                        addLog("[$source] ${result.message}${if (attempt > 1) "（第 $attempt 次嘗試成功）" else ""}")
+                        break
+                    }
+                    // A toggle that failed ambiguously could flip twice if repeated, so only on/off are retried.
+                    val canRetry = result.retryable && action != CardAction.TOGGLE && attempt < MAX_ATTEMPTS
+                    if (!canRetry) {
+                        addLog("[$source] ${result.message}${if (attempt > 1) "（共嘗試 $attempt 次）" else ""}")
+                        break
+                    }
+                    val waitMs = RETRY_DELAY_MS * attempt
+                    addLog("[$source] 第 $attempt 次失敗：${result.message}，${waitMs / 1000.0} 秒後重試")
+                    delay(waitMs)
+                    attempt++
+                }
+                refreshDevices()
+            } finally {
+                executing = false
+            }
         }
     }
+
+    /**
+     * On a cold start the Home client may still be initialising (UNINITIALIZED) when the user confirms,
+     * and a command sent that early fails. Wait for GRANTED, but only up to [PERMISSION_WAIT_MS]: if it
+     * never arrives (e.g. consent not given) the command is still attempted so the real error reaches 記錄.
+     */
+    private suspend fun awaitPermissionReady(source: String) {
+        if (_permission.value == PermissionsState.GRANTED) return
+        val startedAt = SystemClock.elapsedRealtime()
+        val ready = withTimeoutOrNull(PERMISSION_WAIT_MS) {
+            _permission.first { it == PermissionsState.GRANTED }
+        }
+        val waited = seconds(SystemClock.elapsedRealtime() - startedAt)
+        if (ready != null) {
+            addLog("[$source] 等到授權就緒，等了 $waited 秒")
+        } else {
+            addLog("[$source] 等了 $waited 秒，授權仍未就緒（目前 ${_permission.value}），照常嘗試送出指令")
+        }
+    }
+
+    /** "程序啟動後 3.2 秒": how long this app process has been alive, to spot cold-start timing problems. */
+    private fun sinceProcessStart(): String =
+        "程序啟動後 ${seconds(SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime())} 秒"
+
+    private fun seconds(ms: Long): String = String.format(Locale.US, "%.1f", ms / 1000.0)
 
     private fun addLog(message: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.TAIWAN).format(Date())
@@ -364,6 +425,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val DEBOUNCE_MS = 2_000L
         const val CONFIRM_TIMEOUT_MS = 10_000L
+        const val PERMISSION_WAIT_MS = 8_000L
+        const val MAX_ATTEMPTS = 3
+        const val RETRY_DELAY_MS = 1_000L
         const val UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
         const val MAX_LOG = 40
     }

@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
+/** Outcome of one [HomeController.execute] call. */
+data class ExecuteResult(val message: String, val ok: Boolean, val retryable: Boolean)
+
 /**
  * Thin wrapper around the Google Home APIs. Only the OnOff trait is ever used to control a device.
  * Door locks are registered so that they show up (and can be flagged), but there is no code path
@@ -101,23 +104,27 @@ class HomeController(activity: ComponentActivity) {
         )
     }
 
-    /** Sends on/off/toggle through the OnOff trait. Returns a short message for the log. */
-    suspend fun execute(deviceId: String, action: CardAction): String = withContext(Dispatchers.IO) {
+    /**
+     * Sends on/off/toggle through the OnOff trait. [ExecuteResult.message] is the line for the log;
+     * [ExecuteResult.retryable] says whether trying again could plausibly help (a transient Home error,
+     * or a device list that was not ready yet) as opposed to a permanent one (the device has no OnOff).
+     */
+    suspend fun execute(deviceId: String, action: CardAction): ExecuteResult = withContext(Dispatchers.IO) {
         try {
             val device = client.devices().first().firstOrNull { it.id.id == deviceId }
-                ?: return@withContext "找不到裝置，可能已被移除或未授權"
+                ?: return@withContext ExecuteResult("找不到裝置，可能已被移除或未授權", ok = false, retryable = true)
             val trait = device.types().first().flatMap { it.traits() }
                 .filterIsInstance<OnOff>().firstOrNull()
-                ?: return@withContext "「${device.name}」沒有開關功能"
+                ?: return@withContext ExecuteResult("「${device.name}」沒有開關功能", ok = false, retryable = false)
             when (action) {
                 CardAction.ON -> trait.on()
                 CardAction.OFF -> trait.off()
                 CardAction.TOGGLE -> if (trait.onOff == true) trait.off() else trait.on()
             }
-            "已對「${device.name}」執行：${action.label}"
+            ExecuteResult("已對「${device.name}」執行：${action.label}", ok = true, retryable = false)
         } catch (e: HomeException) {
             Log.w(TAG, "execute failed", e)
-            "控制失敗：${e.message}"
+            ExecuteResult("控制失敗：${e.message}", ok = false, retryable = true)
         }
     }
 

@@ -12,8 +12,8 @@ android {
         applicationId = "com.cornming.iccard"
         minSdk = 29
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.3.1"
 
         // GitHub repo that hosts the update APKs (Releases). The app reads its public API, no token.
         buildConfigField("String", "UPDATE_REPO", "\"cornming/ic-card-home\"")
